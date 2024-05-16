@@ -34,11 +34,15 @@ const TeamVisualizer: React.FC = () => {
   });
 
   const offsetDisplay = (() => {
-    const negative = offsetMinutes < 0 ? '-' : '';
+    if (offsetMinutes === 0) {
+      return `Now = ${adjustedTime.toLocaleTimeString()}`;
+    }
+
+    const sign = offsetMinutes < 0 ? '-' : '+';
     const min = (Math.abs(offsetMinutes) % 60).toString();
     const hr = (Math.floor(Math.abs(offsetMinutes) / 60)).toString();
 
-    return `${negative}${hr.padStart(2, '0')}:${min.padStart(2, '0')}`;
+    return `Now ${sign} ${hr.padStart(2, '0')}:${min.padStart(2, '0')} = ${adjustedTime.toLocaleTimeString()}`;
   })();
 
   return (
@@ -49,7 +53,7 @@ const TeamVisualizer: React.FC = () => {
         ))}
       </div>
       <div className="slider-container">
-        <label htmlFor="time-offset-slider">Offset: {offsetDisplay}</label>
+        <label htmlFor="time-offset-slider">{offsetDisplay}</label>
         <input
           type="range"
           id="time-offset-slider"
