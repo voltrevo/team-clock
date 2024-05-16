@@ -14,7 +14,7 @@ const ConfigEditor: React.FC = () => {
   const handleSave = () => {
     try {
       const parsedConfig: TeamMember[] = JSON.parse(config);
-      localStorage.setItem('team', JSON.stringify(parsedConfig));
+      localStorage.setItem('team', JSON.stringify(parsedConfig, null, 2));
       alert('Configuration saved!');
     } catch (error) {
       alert('Invalid JSON');
