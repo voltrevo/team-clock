@@ -1,22 +1,15 @@
-import { useState } from 'react'
-import './App.css'
+import React from 'react';
+import TeamVisualizer from './components/TeamVisualizer';
+import ConfigEditor from './components/ConfigEditor';
 
-function App() {
-  const [count, setCount] = useState(0)
-
+const App: React.FC = () => {
   return (
-    <>
-      <h1>Team Clock</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-    </>
-  )
-}
+    <div className="app">
+      <h1>Team Timezone Tracker</h1>
+      <ConfigEditor />
+      <TeamVisualizer />
+    </div>
+  );
+};
 
-export default App
+export default App;
