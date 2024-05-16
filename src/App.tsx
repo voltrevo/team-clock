@@ -5,9 +5,9 @@ import ConfigEditor from './components/ConfigEditor';
 const App: React.FC = () => {
   return (
     <div className="app">
-      <h1>Team Timezone Tracker</h1>
-      <ConfigEditor />
+      <h1>Team Clock</h1>
       <TeamVisualizer />
+      <ConfigEditor />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import TeamMemberCard from './TeamMemberCard';
 import { TeamMember } from '../types';
+import everySecond from '../everySecond';
 
 const TeamVisualizer: React.FC = () => {
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -12,16 +13,22 @@ const TeamVisualizer: React.FC = () => {
       setTeam(JSON.parse(savedTeam));
     }
 
-    const interval = setInterval(() => {
+    const stop = everySecond(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    });
 
-    return () => clearInterval(interval);
+    return stop;
   }, []);
+
+  const sortedTeam = [...team].sort((a, b) => {
+    const aTime = new Date(currentTime.toLocaleString('en-US', { timeZone: a.timezone }));
+    const bTime = new Date(currentTime.toLocaleString('en-US', { timeZone: b.timezone }));
+    return aTime.getHours() - bTime.getHours() || aTime.getMinutes() - bTime.getMinutes();
+  });
 
   return (
     <div className="team-visualizer">
-      {team.map((member, index) => (
+      {sortedTeam.map((member, index) => (
         <TeamMemberCard key={index} member={member} currentTime={currentTime} />
       ))}
     </div>
