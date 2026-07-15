@@ -94,6 +94,94 @@ function toPercent(minute: number): string {
   return `${(minute / MINUTES_PER_DAY) * 100}%`;
 }
 
+// --- meeting-score graph: everyone's work hours summed, gaussian-blurred ---
+
+const SAMPLE_STEP = 5; // minutes per sample
+const SAMPLE_COUNT = MINUTES_PER_DAY / SAMPLE_STEP;
+const BLUR_SIGMA = 120 / SAMPLE_STEP; // 2 hours
+const BLUR_RADIUS = Math.round(3 * BLUR_SIGMA);
+
+const KERNEL = (() => {
+  const weights: number[] = [];
+  let sum = 0;
+
+  for (let i = -BLUR_RADIUS; i <= BLUR_RADIUS; i++) {
+    const w = Math.exp(-(i * i) / (2 * BLUR_SIGMA * BLUR_SIGMA));
+    weights.push(w);
+    sum += w;
+  }
+
+  return weights.map((w) => w / sum);
+})();
+
+/** Blurred fraction of the team working at each sample of the viewer's day (0..1). */
+function meetingScores(rows: Row[]): number[] {
+  const counts = new Array<number>(SAMPLE_COUNT).fill(0);
+
+  for (const row of rows) {
+    for (const segment of row.segments) {
+      const from = Math.ceil(segment.start / SAMPLE_STEP);
+      const to = Math.ceil(segment.end / SAMPLE_STEP);
+
+      for (let s = from; s < to; s++) {
+        counts[s]++;
+      }
+    }
+  }
+
+  const scores = new Array<number>(SAMPLE_COUNT).fill(0);
+
+  for (let i = 0; i < SAMPLE_COUNT; i++) {
+    let acc = 0;
+
+    for (let k = 0; k < KERNEL.length; k++) {
+      acc += counts[(i + k - BLUR_RADIUS + SAMPLE_COUNT) % SAMPLE_COUNT] * KERNEL[k];
+    }
+
+    scores[i] = acc / rows.length;
+  }
+
+  return scores;
+}
+
+/** Middle of the widest plateau of maximum score (the day wraps, but ties are rare). */
+function peakSample(scores: number[]): number {
+  const max = Math.max(...scores);
+  const eps = 1e-9;
+  let bestStart = 0;
+  let bestLength = 0;
+  let runStart = -1;
+
+  for (let i = 0; i <= scores.length; i++) {
+    const atMax = i < scores.length && scores[i] >= max - eps;
+
+    if (atMax && runStart === -1) {
+      runStart = i;
+    } else if (!atMax && runStart !== -1) {
+      if (i - runStart > bestLength) {
+        bestLength = i - runStart;
+        bestStart = runStart;
+      }
+
+      runStart = -1;
+    }
+  }
+
+  return bestStart + Math.floor(bestLength / 2);
+}
+
+const GRAPH_HEIGHT = 100;
+const GRAPH_PAD = 8;
+
+function graphY(value: number): number {
+  return GRAPH_HEIGHT - GRAPH_PAD - value * (GRAPH_HEIGHT - 2 * GRAPH_PAD);
+}
+
+const timeShortFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 const hourFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
 
 function hourLabel(hour: number): string {
@@ -132,6 +220,55 @@ const Timeline: React.FC<Props> = ({ team, time }) => {
 
   const overlap = rows.length >= 2 ? computeOverlap(rows) : { all: [], some: [] };
   const nowLeft = toPercent(minutesIntoDay(time));
+
+  const scores = rows.length >= 2 ? meetingScores(rows) : null;
+  let graphRow: React.ReactNode = null;
+
+  if (scores) {
+    const peak = peakSample(scores);
+    const peakMinutes = peak * SAMPLE_STEP;
+    const peakDate = new Date(time);
+    peakDate.setHours(Math.floor(peakMinutes / 60), peakMinutes % 60, 0, 0);
+    const peakLabel = timeShortFormatter.format(peakDate);
+
+    const linePath = scores
+      .map((v, i) => `${i === 0 ? 'M' : 'L'}${i},${graphY(v).toFixed(2)}`)
+      .join('');
+    const areaPath = `${linePath}L${SAMPLE_COUNT},${graphY(scores[0]).toFixed(2)}L${SAMPLE_COUNT},${GRAPH_HEIGHT}L0,${GRAPH_HEIGHT}Z`;
+
+    graphRow = (
+      <div className="timeline-row timeline-row--graph">
+        <div className="timeline-label">
+          <span className="member-name">Meeting score</span>
+          <span className="member-zone">±2h blurred sum</span>
+        </div>
+        <div
+          className="timeline-graph"
+          title="Sum of everyone's working hours with a 2-hour gaussian blur — peaks are the best compromise for meetings"
+        >
+          <svg viewBox={`0 0 ${SAMPLE_COUNT} ${GRAPH_HEIGHT}`} preserveAspectRatio="none">
+            <path className="graph-area" d={areaPath} />
+            <path
+              className="graph-line"
+              d={`${linePath}L${SAMPLE_COUNT},${graphY(scores[0]).toFixed(2)}`}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+          <div
+            className="graph-peak"
+            style={{
+              left: `${(peak / SAMPLE_COUNT) * 100}%`,
+              bottom: `${GRAPH_PAD + scores[peak] * (GRAPH_HEIGHT - 2 * GRAPH_PAD)}%`,
+            }}
+          />
+          <div className="now-line" style={{ left: nowLeft }} />
+        </div>
+        <div className="timeline-meta">
+          <span className="graph-peak-label">peak {peakLabel}</span>
+        </div>
+      </div>
+    );
+  }
 
   const renderOverlays = () => (
     <>
@@ -211,6 +348,8 @@ const Timeline: React.FC<Props> = ({ team, time }) => {
         );
       })}
 
+      {graphRow}
+
       {rows.length >= 2 && (
         <div className="timeline-legend">
           <span className="legend-item">
@@ -226,6 +365,9 @@ const Timeline: React.FC<Props> = ({ team, time }) => {
           </span>
           <span className="legend-item">
             <span className="legend-swatch legend-swatch--now" /> now
+          </span>
+          <span className="legend-item">
+            <span className="legend-swatch legend-swatch--peak" /> best meeting time
           </span>
         </div>
       )}
