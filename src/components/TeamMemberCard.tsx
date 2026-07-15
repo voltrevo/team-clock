@@ -1,47 +1,41 @@
 import React from 'react';
 import { TeamMember } from '../types';
+import {
+  formatTimeInZone,
+  formatUtcOffset,
+  getDayDiff,
+  getMemberStatus,
+  getUtcOffsetMinutes,
+  getZonedTime,
+  weekdayName,
+} from '../lib/time';
+import { cityLabel } from '../lib/timezones';
+import StatusBadge from './StatusBadge';
 
 interface Props {
   member: TeamMember;
-  currentTime: Date;
+  time: Date;
 }
 
-const TeamMemberCard: React.FC<Props> = ({ member, currentTime }) => {
-  const memberTime = new Date(currentTime.toLocaleString('en-US', { timeZone: member.timezone }));
-  const memberHour = memberTime.getHours();
-  const memberMinute = memberTime.getMinutes();
-  const memberTimeInMinutes = memberHour * 60 + memberMinute;
-  const dayOfWeek = memberTime.getDay();
-  const [startHour, startMinute] = [parseInt(member.workHours[0].slice(0, 2)), parseInt(member.workHours[0].slice(2))];
-  const [endHour, endMinute] = [parseInt(member.workHours[1].slice(0, 2)), parseInt(member.workHours[1].slice(2))];
-  const startTimeInMinutes = startHour * 60 + startMinute;
-  const endTimeInMinutes = endHour * 60 + endMinute;
-
-  let status = 'Off Hours';
-  let cardColor = '#f0f0f0'; // Default color
-
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    status = "Weekend";
-    cardColor = '#9e9e9e';
-  } else if (memberTimeInMinutes >= startTimeInMinutes - 120 && memberTimeInMinutes < startTimeInMinutes) {
-    status = "Early";
-    cardColor = '#fbc02d';
-  } else if (memberTimeInMinutes >= startTimeInMinutes && memberTimeInMinutes < endTimeInMinutes) {
-    status = 'Work Time';
-    cardColor = '#388e3c';
-  } else if (memberTimeInMinutes >= endTimeInMinutes && memberTimeInMinutes < endTimeInMinutes + 120) {
-    status = "Late";
-    cardColor = '#1976d2';
-  } else if (memberTimeInMinutes >= endTimeInMinutes + 120 || memberTimeInMinutes < startTimeInMinutes - 120) {
-    status = "Off Hours";
-    cardColor = '#d32f2f';
-  }
+const TeamMemberCard: React.FC<Props> = ({ member, time }) => {
+  const zoned = getZonedTime(time, member.timezone);
+  const status = getMemberStatus(zoned, member.workHours);
+  const dayDiff = getDayDiff(zoned, time);
 
   return (
-    <div className="team-member-card" style={{ backgroundColor: cardColor }}>
-      <h2>{member.name}</h2>
-      <p>{memberTime.toLocaleTimeString()}</p>
-      <p>{status}</p>
+    <div className="member-card" data-status={status}>
+      <div className="member-card-head">
+        <h3 className="member-name">{member.name || 'Unnamed'}</h3>
+        <StatusBadge status={status} />
+      </div>
+      <div className="member-card-time">
+        {formatTimeInZone(time, member.timezone, true)}
+        {dayDiff !== 0 && <span className="day-diff">{dayDiff > 0 ? '+1d' : '-1d'}</span>}
+      </div>
+      <div className="member-card-zone">
+        {weekdayName(zoned.weekday)} &middot; {cityLabel(member.timezone)} &middot;{' '}
+        {formatUtcOffset(getUtcOffsetMinutes(time, member.timezone))}
+      </div>
     </div>
   );
 };
