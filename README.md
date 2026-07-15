@@ -37,5 +37,5 @@ Deploys to GitHub Pages from `main` via `.github/workflows/gh-pages.yml`.
 ]
 ```
 
-`timezone` is an IANA zone name; `workHours` is `[start, end]` in 24h `HHMM`, in the
-member's local time.
+`timezone` is an IANA zone name or a fixed offset like `"+05:30"`; `workHours` is
+`[start, end]` in 24h `HHMM`, in the member's local time.

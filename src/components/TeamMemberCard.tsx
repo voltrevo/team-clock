@@ -9,7 +9,7 @@ import {
   getZonedTime,
   weekdayName,
 } from '../lib/time';
-import { cityLabel } from '../lib/timezones';
+import { cityLabel, isOffsetZone } from '../lib/timezones';
 import StatusBadge from './StatusBadge';
 
 interface Props {
@@ -33,8 +33,10 @@ const TeamMemberCard: React.FC<Props> = ({ member, time }) => {
         {dayDiff !== 0 && <span className="day-diff">{dayDiff > 0 ? '+1d' : '-1d'}</span>}
       </div>
       <div className="member-card-zone">
-        {weekdayName(zoned.weekday)} &middot; {cityLabel(member.timezone)} &middot;{' '}
-        {formatUtcOffset(getUtcOffsetMinutes(time, member.timezone))}
+        {weekdayName(zoned.weekday)} &middot; {cityLabel(member.timezone)}
+        {!isOffsetZone(member.timezone) && (
+          <> &middot; {formatUtcOffset(getUtcOffsetMinutes(time, member.timezone))}</>
+        )}
       </div>
     </div>
   );

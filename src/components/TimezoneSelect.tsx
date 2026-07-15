@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTimeInZone, formatUtcOffset, getUtcOffsetMinutes } from '../lib/time';
-import { cityLabel, searchTimeZones } from '../lib/timezones';
+import { cityLabel, isOffsetZone, searchTimeZones } from '../lib/timezones';
 import { ChevronDownIcon } from './icons';
 
 interface Props {
@@ -81,9 +81,11 @@ const TimezoneSelect: React.FC<Props> = ({ value, onChange }) => {
         aria-expanded={open}
       >
         <span className="tz-select-city">{cityLabel(value)}</span>
-        <span className="tz-select-offset">
-          {formatUtcOffset(getUtcOffsetMinutes(now, value))}
-        </span>
+        {!isOffsetZone(value) && (
+          <span className="tz-select-offset">
+            {formatUtcOffset(getUtcOffsetMinutes(now, value))}
+          </span>
+        )}
         <ChevronDownIcon />
       </button>
 
@@ -93,7 +95,7 @@ const TimezoneSelect: React.FC<Props> = ({ value, onChange }) => {
             ref={inputRef}
             className="tz-select-search"
             type="text"
-            placeholder="Search city or region…"
+            placeholder="Search city, region, or UTC±N…"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
@@ -114,10 +116,12 @@ const TimezoneSelect: React.FC<Props> = ({ value, onChange }) => {
                 }}
               >
                 <span className="tz-option-city">{cityLabel(zone)}</span>
-                <span className="tz-option-zone">{zone}</span>
+                <span className="tz-option-zone">{isOffsetZone(zone) ? 'Fixed offset' : zone}</span>
                 <span className="tz-option-now">
-                  {formatTimeInZone(now, zone)} &middot;{' '}
-                  {formatUtcOffset(getUtcOffsetMinutes(now, zone))}
+                  {formatTimeInZone(now, zone)}
+                  {!isOffsetZone(zone) && (
+                    <> &middot; {formatUtcOffset(getUtcOffsetMinutes(now, zone))}</>
+                  )}
                 </span>
               </li>
             ))}
