@@ -99,7 +99,10 @@ function toPercent(minute: number): string {
 const SAMPLE_STEP = 5; // minutes per sample
 const SAMPLE_COUNT = MINUTES_PER_DAY / SAMPLE_STEP;
 const BLUR_SIGMA = 120 / SAMPLE_STEP; // 2 hours
-const BLUR_RADIUS = Math.round(3 * BLUR_SIGMA);
+// The kernel must span the full day (not truncate at 3-sigma): the blurred
+// indicators are multiplied together, so they must be strictly positive
+// everywhere or a single member zeroes out entire stretches of the product.
+const BLUR_RADIUS = SAMPLE_COUNT / 2;
 
 const KERNEL = (() => {
   const weights: number[] = [];
@@ -114,34 +117,41 @@ const KERNEL = (() => {
   return weights.map((w) => w / sum);
 })();
 
-/** Blurred fraction of the team working at each sample of the viewer's day (0..1). */
+/**
+ * Product of each member's gaussian-blurred work-hours indicator, per sample
+ * of the viewer's day. Multiplying (rather than summing) means one member's
+ * dead-of-night can't be outvoted by everyone else's midday. Returned as the
+ * geometric mean (nth root) so the 0..1 scale is comparable across team
+ * sizes; peaks are identical to the raw product's.
+ */
 function meetingScores(rows: Row[]): number[] {
-  const counts = new Array<number>(SAMPLE_COUNT).fill(0);
+  const scores = new Array<number>(SAMPLE_COUNT).fill(1);
+  const indicator = new Array<number>(SAMPLE_COUNT);
 
   for (const row of rows) {
+    indicator.fill(0);
+
     for (const segment of row.segments) {
       const from = Math.ceil(segment.start / SAMPLE_STEP);
       const to = Math.ceil(segment.end / SAMPLE_STEP);
 
       for (let s = from; s < to; s++) {
-        counts[s]++;
+        indicator[s] = 1;
       }
     }
-  }
 
-  const scores = new Array<number>(SAMPLE_COUNT).fill(0);
+    for (let i = 0; i < SAMPLE_COUNT; i++) {
+      let acc = 0;
 
-  for (let i = 0; i < SAMPLE_COUNT; i++) {
-    let acc = 0;
+      for (let k = 0; k < KERNEL.length; k++) {
+        acc += indicator[(i + k - BLUR_RADIUS + SAMPLE_COUNT) % SAMPLE_COUNT] * KERNEL[k];
+      }
 
-    for (let k = 0; k < KERNEL.length; k++) {
-      acc += counts[(i + k - BLUR_RADIUS + SAMPLE_COUNT) % SAMPLE_COUNT] * KERNEL[k];
+      scores[i] *= acc;
     }
-
-    scores[i] = acc / rows.length;
   }
 
-  return scores;
+  return scores.map((v) => Math.pow(v, 1 / rows.length));
 }
 
 /** Middle of the widest plateau of maximum score (the day wraps, but ties are rare). */
@@ -240,11 +250,11 @@ const Timeline: React.FC<Props> = ({ team, time }) => {
       <div className="timeline-row timeline-row--graph">
         <div className="timeline-label">
           <span className="member-name">Meeting score</span>
-          <span className="member-zone">±2h blurred sum</span>
+          <span className="member-zone">±2h blur, multiplied</span>
         </div>
         <div
           className="timeline-graph"
-          title="Sum of everyone's working hours with a 2-hour gaussian blur — peaks are the best compromise for meetings"
+          title="Each member's working hours blurred with a 2-hour gaussian, then multiplied together — peaks are the best compromise for meetings"
         >
           <svg viewBox={`0 0 ${SAMPLE_COUNT} ${GRAPH_HEIGHT}`} preserveAspectRatio="none">
             <path className="graph-area" d={areaPath} />
